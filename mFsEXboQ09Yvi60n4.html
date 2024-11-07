@@ -1,0 +1,517 @@
+<html><head><base href="." /><meta charset="UTF-8" />
+<title>Candy Tetris</title>
+<style>
+  body {
+    background: lavender;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-family: 'Press Start 2P', system-ui;
+    color: #fff;
+  }
+
+  #game-container {
+    display: flex;
+    gap: 20px;
+    margin-top: 20px;
+    align-items: flex-start;
+  }
+
+  #camera-container {
+    border: 2px solid #fff;
+    background: rgba(255, 182, 193, 0.2);
+    width: 300px;
+    height: 225px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+  }
+
+  #camera-feed {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  #game-board {
+    border: 2px solid #fff;
+    background: rgba(255, 182, 193, 0.2);
+  }
+
+  .info-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .next-piece {
+    border: 2px solid #fff;
+    padding: 10px;
+    background: rgba(255, 182, 193, 0.2);
+  }
+
+  .score-board {
+    border: 2px solid #fff;
+    padding: 10px;
+    background: rgba(255, 182, 193, 0.2);
+  }
+
+  .controls {
+    border: 2px solid #fff;
+    padding: 10px;
+    background: rgba(255, 182, 193, 0.2);
+  }
+
+  .game-over {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255, 182, 193, 0.9);
+    padding: 20px;
+    border: 2px solid #ff69b4;
+    display: none;
+  }
+
+  .start-menu {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255, 182, 193, 0.9);
+    padding: 20px;
+    border: 2px solid #ff69b4;
+    text-align: center;
+    z-index: 100;
+  }
+
+  button {
+    background: #ff69b4;
+    color: white;
+    border: 2px solid white;
+    padding: 10px 20px;
+    font-family: 'Press Start 2P', system-ui;
+    cursor: pointer;
+    margin: 10px;
+  }
+
+  button:hover {
+    background: #ff1493;
+  }
+
+  @keyframes glow {
+    0% { text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 15px #ff69b4, 0 0 20px #ff69b4; }
+    100% { text-shadow: 0 0 10px #fff, 0 0 20px #fff, 0 0 30px #ff69b4, 0 0 40px #ff69b4; }
+  }
+
+  h1 {
+    color: #ff69b4;
+    text-shadow: 0 0 5px #fff;
+    animation: glow 1.5s ease-in-out infinite alternate;
+  }
+
+  .score-board h3 {
+    color: #ff69b4;
+    text-shadow: 0 0 5px #fff;
+  }
+
+  .score-board span {
+    color: #fff;
+    text-shadow: 0 0 5px #ff69b4;
+  }
+
+  .start-menu h2, .game-over h2 {
+    color: #ff69b4;
+    text-shadow: 0 0 5px #fff, 0 0 10px #ff69b4;
+    animation: glow 1.5s ease-in-out infinite alternate;
+  }
+
+  .controls h3 {
+    color: #ff69b4;
+    text-shadow: 0 0 5px #fff;
+  }
+
+  .controls p {
+    text-shadow: 0 0 3px #ff69b4;
+  }
+
+  .next-piece h3 {
+    color: #ff69b4;
+    text-shadow: 0 0 5px #fff;
+  }
+</style>
+</head>
+<body>
+  <h1>CANDY TETRIS</h1>
+  <div id="game-container">
+    <div id="camera-container">
+      <video id="camera-feed" autoplay playsinline></video>
+    </div>
+    <canvas id="game-board" width="300" height="600"></canvas>
+    <div class="info-panel">
+      <div class="next-piece">
+        <h3>Next Candy:</h3>
+        <canvas id="next-piece" width="100" height="100"></canvas>
+      </div>
+      <div class="score-board">
+        <h3>Score: <span id="score">0</span></h3>
+        <h3>Lines: <span id="lines">0</span></h3>
+        <h3>Level: <span id="level">1</span></h3>
+      </div>
+      <div class="controls">
+        <h3>Controls:</h3>
+        <p>← → : Move</p>
+        <p>↑ : Rotate</p>
+        <p>↓ : Soft Drop</p>
+        <p>Space : Hard Drop</p>
+        <p>P : Pause</p>
+      </div>
+    </div>
+  </div>
+  <div class="start-menu" id="start-menu">
+    <h2>CANDY TETRIS</h2>
+    <button onclick="startGame()">Start Game</button>
+  </div>
+  <div class="game-over" id="game-over">
+    <h2>GAME OVER</h2>
+    <button onclick="startGame()">Play Again</button>
+  </div>
+
+<script>
+const BOARD_WIDTH = 10;
+const BOARD_HEIGHT = 20;
+const BLOCK_SIZE = 30;
+const COLORS = [
+    '#FF69B4', // Pink candy
+    '#FF1493', // Deep pink candy
+    '#FFA500', // Orange candy
+    '#FFD700', // Gold candy
+    '#98FB98', // Mint candy
+    '#DDA0DD', // Plum candy
+    '#FF6347'  // Red candy
+];
+
+const SHAPES = [
+    [[1, 1, 1, 1]],                    // I
+    [[1, 0, 0], [1, 1, 1]],           // J
+    [[0, 0, 1], [1, 1, 1]],           // L
+    [[1, 1], [1, 1]],                 // O
+    [[0, 1, 1], [1, 1, 0]],           // S
+    [[0, 1, 0], [1, 1, 1]],           // T
+    [[1, 1, 0], [0, 1, 1]]            // Z
+];
+
+let board = Array(BOARD_HEIGHT).fill().map(() => Array(BOARD_WIDTH).fill(0));
+let currentPiece = null;
+let currentPiecePos = { x: 0, y: 0 };
+let nextPiece = null;
+let gameLoop = null;
+let score = 0;
+let lines = 0;
+let level = 1;
+let gameOver = false;
+let dropInterval = 1000;
+
+const canvas = document.getElementById('game-board');
+const ctx = canvas.getContext('2d');
+const nextCanvas = document.getElementById('next-piece');
+const nextCtx = nextCanvas.getContext('2d');
+
+async function initCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ 
+      video: { 
+        width: 300,
+        height: 225
+      } 
+    });
+    const videoElement = document.getElementById('camera-feed');
+    videoElement.srcObject = stream;
+  } catch (err) {
+    console.error("Error accessing camera:", err);
+    const cameraContainer = document.getElementById('camera-container');
+    cameraContainer.innerHTML = '<p style="color: #ff69b4; text-align: center;">Camera not available</p>';
+  }
+}
+
+class Piece {
+    constructor(shape, colorIndex) {
+        this.shape = shape;
+        this.colorIndex = colorIndex;
+    }
+
+    rotate() {
+        const rows = this.shape.length;
+        const cols = this.shape[0].length;
+        const rotated = Array(cols).fill().map(() => Array(rows).fill(0));
+        
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                rotated[c][rows - 1 - r] = this.shape[r][c];
+            }
+        }
+        return rotated;
+    }
+}
+
+function createNewPiece() {
+    const index = Math.floor(Math.random() * SHAPES.length);
+    return new Piece([...SHAPES[index]], index);
+}
+
+function drawBlock(ctx, x, y, colorIndex) {
+    const blockX = x * BLOCK_SIZE;
+    const blockY = y * BLOCK_SIZE;
+    
+    ctx.fillStyle = COLORS[colorIndex];
+    ctx.beginPath();
+    ctx.arc(blockX + BLOCK_SIZE/2, blockY + BLOCK_SIZE/2, BLOCK_SIZE/2 - 2, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.beginPath();
+    ctx.arc(blockX + BLOCK_SIZE/3, blockY + BLOCK_SIZE/3, BLOCK_SIZE/6, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(blockX + BLOCK_SIZE/2, blockY + BLOCK_SIZE/2, BLOCK_SIZE/2 - 2, 0, Math.PI * 2);
+    ctx.stroke();
+}
+
+function drawBoard() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    for (let y = 0; y < BOARD_HEIGHT; y++) {
+        for (let x = 0; x < BOARD_WIDTH; x++) {
+            if (board[y][x]) {
+                drawBlock(ctx, x, y, board[y][x] - 1);
+            }
+        }
+    }
+    
+    if (currentPiece) {
+        for (let y = 0; y < currentPiece.shape.length; y++) {
+            for (let x = 0; x < currentPiece.shape[y].length; x++) {
+                if (currentPiece.shape[y][x]) {
+                    drawBlock(ctx, currentPiecePos.x + x, currentPiecePos.y + y, currentPiece.colorIndex);
+                }
+            }
+        }
+    }
+}
+
+function drawNextPiece() {
+    nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
+    
+    if (nextPiece) {
+        const offsetX = (nextCanvas.width - nextPiece.shape[0].length * BLOCK_SIZE) / 2;
+        const offsetY = (nextCanvas.height - nextPiece.shape.length * BLOCK_SIZE) / 2;
+        
+        for (let y = 0; y < nextPiece.shape.length; y++) {
+            for (let x = 0; x < nextPiece.shape[y].length; x++) {
+                if (nextPiece.shape[y][x]) {
+                    const blockX = offsetX + x * BLOCK_SIZE;
+                    const blockY = offsetY + y * BLOCK_SIZE;
+                    
+                    nextCtx.fillStyle = COLORS[nextPiece.colorIndex];
+                    nextCtx.beginPath();
+                    nextCtx.arc(blockX + BLOCK_SIZE/2, blockY + BLOCK_SIZE/2, BLOCK_SIZE/2 - 2, 0, Math.PI * 2);
+                    nextCtx.fill();
+                    nextCtx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                    nextCtx.lineWidth = 2;
+                    nextCtx.beginPath();
+                    nextCtx.arc(blockX + BLOCK_SIZE/2, blockY + BLOCK_SIZE/2, BLOCK_SIZE/2 - 2, 0, Math.PI * 2);
+                    nextCtx.stroke();
+                }
+            }
+        }
+    }
+}
+
+function isCollision(piece, pos) {
+    for (let y = 0; y < piece.shape.length; y++) {
+        for (let x = 0; x < piece.shape[y].length; x++) {
+            if (piece.shape[y][x]) {
+                const newX = pos.x + x;
+                const newY = pos.y + y;
+                
+                if (newX < 0 || newX >= BOARD_WIDTH || newY >= BOARD_HEIGHT) {
+                    return true;
+                }
+                
+                if (newY >= 0 && board[newY][newX]) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+function mergePiece() {
+    for (let y = 0; y < currentPiece.shape.length; y++) {
+        for (let x = 0; x < currentPiece.shape[y].length; x++) {
+            if (currentPiece.shape[y][x]) {
+                if (currentPiecePos.y + y < 0) {
+                    gameOver = true;
+                    return;
+                }
+                board[currentPiecePos.y + y][currentPiecePos.x + x] = currentPiece.colorIndex + 1;
+            }
+        }
+    }
+}
+
+function clearLines() {
+    let linesCleared = 0;
+    
+    for (let y = BOARD_HEIGHT - 1; y >= 0; y--) {
+        if (board[y].every(cell => cell !== 0)) {
+            board.splice(y, 1);
+            board.unshift(Array(BOARD_WIDTH).fill(0));
+            linesCleared++;
+            y++;
+        }
+    }
+    
+    if (linesCleared > 0) {
+        lines += linesCleared;
+        score += linesCleared * 100 * level;
+        level = Math.floor(lines / 10) + 1;
+        dropInterval = Math.max(100, 1000 - (level - 1) * 100);
+        
+        document.getElementById('score').textContent = score;
+        document.getElementById('lines').textContent = lines;
+        document.getElementById('level').textContent = level;
+    }
+}
+
+function spawnPiece() {
+    if (!nextPiece) {
+        nextPiece = createNewPiece();
+    }
+    
+    currentPiece = nextPiece;
+    nextPiece = createNewPiece();
+    currentPiecePos = {
+        x: Math.floor((BOARD_WIDTH - currentPiece.shape[0].length) / 2),
+        y: -currentPiece.shape.length
+    };
+    
+    drawNextPiece();
+    
+    if (isCollision(currentPiece, currentPiecePos)) {
+        gameOver = true;
+    }
+}
+
+function moveDown() {
+    const newPos = { ...currentPiecePos, y: currentPiecePos.y + 1 };
+    
+    if (!isCollision(currentPiece, newPos)) {
+        currentPiecePos = newPos;
+        return true;
+    }
+    
+    mergePiece();
+    clearLines();
+    
+    if (!gameOver) {
+        spawnPiece();
+    }
+    return false;
+}
+
+function move(dir) {
+    const newPos = { ...currentPiecePos, x: currentPiecePos.x + dir };
+    if (!isCollision(currentPiece, newPos)) {
+        currentPiecePos = newPos;
+    }
+}
+
+function rotate() {
+    const rotated = currentPiece.rotate();
+    const piece = new Piece(rotated, currentPiece.colorIndex);
+    
+    if (!isCollision(piece, currentPiecePos)) {
+        currentPiece = piece;
+    }
+}
+
+function hardDrop() {
+    while (moveDown()) {}
+}
+
+function handleKeyPress(event) {
+    if (gameOver) return;
+    
+    switch(event.keyCode) {
+        case 37: // Left
+            move(-1);
+            break;
+        case 39: // Right
+            move(1);
+            break;
+        case 40: // Down
+            moveDown();
+            break;
+        case 38: // Up
+            rotate();
+            break;
+        case 32: // Space
+            hardDrop();
+            break;
+        case 80: // P
+            if (gameLoop) {
+                clearInterval(gameLoop);
+                gameLoop = null;
+            } else {
+                gameLoop = setInterval(update, dropInterval);
+            }
+            break;
+    }
+    drawBoard();
+}
+
+function update() {
+    moveDown();
+    drawBoard();
+    
+    if (gameOver) {
+        clearInterval(gameLoop);
+        document.getElementById('game-over').style.display = 'block';
+        document.getElementById('start-menu').style.display = 'block';
+    }
+}
+
+function startGame() {
+    document.getElementById('start-menu').style.display = 'none';
+    
+    board = Array(BOARD_HEIGHT).fill().map(() => Array(BOARD_WIDTH).fill(0));
+    score = 0;
+    lines = 0;
+    level = 1;
+    gameOver = false;
+    dropInterval = 1000;
+    
+    document.getElementById('score').textContent = '0';
+    document.getElementById('lines').textContent = '0';
+    document.getElementById('level').textContent = '1';
+    document.getElementById('game-over').style.display = 'none';
+    
+    if (gameLoop) {
+        clearInterval(gameLoop);
+    }
+    
+    initCamera();
+    spawnPiece();
+    drawBoard();
+    gameLoop = setInterval(update, dropInterval);
+}
+
+document.addEventListener('keydown', handleKeyPress);
+</script>
+</body></html>
